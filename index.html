@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b0b12">
+  <title>OnStage Mic</title>
+  <style>
+    :root{color-scheme:dark;--bg:#090a12;--panel:#141622;--line:#292d40;--muted:#a5a9bd;--pink:#ff4fa3;--cyan:#53e5ee}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% -15%,#292044 0,#10111d 42%,var(--bg) 78%);font:16px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;color:#f7f7fc;display:grid;place-items:center;padding:24px}
+    main{width:min(760px,100%)}header{text-align:center;margin-bottom:26px}.eyebrow{color:var(--cyan);font-size:.75rem;font-weight:800;letter-spacing:.2em;text-transform:uppercase}h1{font-size:clamp(2.5rem,8vw,4.8rem);line-height:1;margin:10px 0;background:linear-gradient(100deg,#fff,#ff8bc3 55%,#77f4f5);-webkit-background-clip:text;background-clip:text;color:transparent}header p{color:var(--muted);margin:12px 0}
+    .panel{background:linear-gradient(145deg,#191b2aee,#11131eee);border:1px solid var(--line);border-radius:24px;padding:clamp(20px,5vw,34px);box-shadow:0 24px 90px #0008}
+    .status{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:.9rem;margin-bottom:24px}.dot{width:10px;height:10px;border-radius:50%;background:#777;box-shadow:0 0 0 4px #7772}.dot.live{background:#5af0a2;box-shadow:0 0 0 4px #5af0a222,0 0 15px #5af0a2}
+    .mic{height:180px;display:grid;place-items:center;position:relative;margin:10px auto 22px}.ring{position:absolute;width:156px;height:156px;border-radius:50%;border:1px solid #ff4fa344}.mic-icon{font-size:64px;width:112px;height:112px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(145deg,#ff4fa333,#53e5ee22);border:1px solid #ffffff20}.live .ring{animation:pulse 1.8s ease-out infinite}.live .ring:nth-child(2){animation-delay:.6s}.live .ring:nth-child(3){animation-delay:1.2s}@keyframes pulse{0%{transform:scale(.75);opacity:.8}100%{transform:scale(1.45);opacity:0}}
+    .actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}.btn{border:0;border-radius:14px;padding:14px 24px;font-weight:800;font-size:1rem;cursor:pointer;transition:transform .15s,filter .15s}.btn:hover{transform:translateY(-2px);filter:brightness(1.08)}.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}.primary{color:#130b16;background:linear-gradient(100deg,var(--pink),#ffad77)}.secondary{color:#f7f7fc;background:#292d40;border:1px solid #454a62}
+    .controls{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:28px}.control{background:#0d0f19;border:1px solid var(--line);border-radius:16px;padding:16px;min-width:0}.control label{display:block;font-size:.85rem;font-weight:700;margin-bottom:10px}.control select{width:100%;background:#1b1e2c;color:white;border:1px solid #3a3e52;border-radius:10px;padding:11px;font:inherit}.range-line{display:flex;align-items:center;gap:12px}.range-line input{width:100%;accent-color:var(--pink)}output{min-width:42px;text-align:right;color:var(--cyan);font-variant-numeric:tabular-nums}
+    .notice{margin-top:18px;padding:14px 16px;border-radius:12px;background:#202033;color:#c5c8d8;font-size:.86rem}.notice strong{color:#fff}.notice.error{background:#3b1b2b;color:#ffd5e5}.meter{height:7px;border-radius:20px;background:#292d40;overflow:hidden;margin-top:12px}.meter span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--pink));transition:width .08s}
+    footer{text-align:center;color:#777d94;font-size:.78rem;margin-top:20px}
+    @media(max-width:560px){.controls{grid-template-columns:1fr}.panel{border-radius:20px}.btn{flex:1}}
+  </style>
+</head>
+<body>
+<main>
+  <header><div class="eyebrow">LIVE AUDIO MONITOR</div><h1>OnStage Mic</h1><p>Your microphone. Your speakers. Your stage.</p></header>
+  <section class="panel">
+    <div class="status"><span id="dot" class="dot"></span><span id="statusText">Microphone is off</span></div>
+    <div class="mic" id="micVisual"><span class="ring"></span><span class="ring"></span><span class="ring"></span><div class="mic-icon">🎙️</div></div>
+    <div class="actions"><button class="btn primary" id="startBtn">▶ Start microphone</button><button class="btn secondary" id="stopBtn" disabled>■ Stop</button></div>
+    <div class="controls">
+      <div class="control"><label for="inputDevice">🎤 Microphone input</label><select id="inputDevice"><option value="">Default microphone</option></select></div>
+      <div class="control"><label for="outputDevice">🔊 Speaker output</label><select id="outputDevice"><option value="">Default speakers</option></select></div>
+      <div class="control"><label for="volume">Speaker volume</label><div class="range-line"><input id="volume" type="range" min="0" max="100" value="70"><output id="volumeValue">70%</output></div></div>
+      <div class="control"><label>Input level</label><div id="levelText" style="color:var(--cyan);font-weight:700">Waiting for audio…</div><div class="meter"><span id="meterBar"></span></div></div>
+    </div>
+    <div class="notice" id="notice"><strong>Ready when you are.</strong> Connect your mic, choose an output if available, then press Start microphone. Your browser will ask for microphone permission.</div>
+  </section>
+  <footer>Audio stays on this device. Use headphones while testing to reduce feedback.</footer>
+</main>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const startBtn=$('startBtn'), stopBtn=$('stopBtn'), input=$('inputDevice'), output=$('outputDevice');
+  const volume=$('volume'), volumeValue=$('volumeValue'), notice=$('notice');
+  let stream=null, context=null, source=null, gain=null, analyser=null, raf=0;
+  const setStatus=(live,text)=>{$('dot').classList.toggle('live',live);$('micVisual').classList.toggle('live',live);$('statusText').textContent=text;startBtn.disabled=live;stopBtn.disabled=!live;};
+  const message=(html,error=false)=>{notice.innerHTML=html;notice.classList.toggle('error',error);};
+  const refreshDevices=async()=>{
+    if(!navigator.mediaDevices?.enumerateDevices)return;
+    const devices=await navigator.mediaDevices.enumerateDevices();
+    const keepIn=input.value,keepOut=output.value;
+    input.innerHTML='<option value="">Default microphone</option>';
+    output.innerHTML='<option value="">Default speakers</option>';
+    devices.filter(d=>d.kind==='audioinput').forEach((d,i)=>input.add(new Option(d.label||'Microphone '+(i+1),d.deviceId)));
+    devices.filter(d=>d.kind==='audiooutput').forEach((d,i)=>output.add(new Option(d.label||'Speaker '+(i+1),d.deviceId)));
+    if([...input.options].some(o=>o.value===keepIn))input.value=keepIn;
+    if([...output.options].some(o=>o.value===keepOut))output.value=keepOut;
+  };
+  const drawMeter=()=>{
+    if(!analyser)return;
+    const data=new Uint8Array(analyser.fftSize);analyser.getByteTimeDomainData(data);
+    let sum=0;for(const v of data){const n=(v-128)/128;sum+=n*n;}
+    const rms=Math.sqrt(sum/data.length),pct=Math.min(100,Math.round(rms*260));
+    $('meterBar').style.width=pct+'%';$('levelText').textContent=pct<2?'No input detected':pct+'%';
+    raf=requestAnimationFrame(drawMeter);
+  };
+  async function stop(){
+    cancelAnimationFrame(raf);
+    if(stream)stream.getTracks().forEach(t=>t.stop());
+    if(context&&context.state!=='closed')await context.close();
+    stream=context=source=gain=analyser=null;
+    $('meterBar').style.width='0%';$('levelText').textContent='Waiting for audio…';setStatus(false,'Microphone is off');
+  }
+  async function start(){
+    try{
+      if(!navigator.mediaDevices?.getUserMedia)throw new Error('This browser cannot access a microphone. Open the site over HTTPS or localhost in a supported browser.');
+      await stop();
+      const constraints={audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}};
+      if(input.value)constraints.audio.deviceId={exact:input.value};
+      stream=await navigator.mediaDevices.getUserMedia(constraints);
+      await refreshDevices();
+      context=new (window.AudioContext||window.webkitAudioContext)();
+      if(context.state==='suspended')await context.resume();
+      source=context.createMediaStreamSource(stream);gain=context.createGain();analyser=context.createAnalyser();analyser.fftSize=1024;
+      gain.gain.value=Number(volume.value)/100;
+      source.connect(gain);gain.connect(analyser);analyser.connect(context.destination);
+      // Output selection is supported by some browsers; otherwise default output is used.
+      if(output.value&&typeof context.setSinkId==='function'){
+        await context.setSinkId(output.value);
+      }
+      setStatus(true,'Microphone is live');message('<strong>You’re on stage!</strong> Live microphone audio is playing through this device’s selected audio output.');
+      drawMeter();
+    }catch(err){
+      await stop();
+      const msg=err?.name==='NotAllowedError'?'Microphone permission was blocked. Allow microphone access in your browser settings, then try again.':err?.message||'Could not start the microphone.';
+      message('<strong>Could not start.</strong> '+msg,true);
+    }
+  }
+  startBtn.addEventListener('click',start);stopBtn.addEventListener('click',stop);
+  volume.addEventListener('input',()=>{volumeValue.value=volume.value+'%';if(gain)gain.gain.setTargetAtTime(Number(volume.value)/100,context.currentTime,.02);});
+  output.addEventListener('change',async()=>{
+    if(!context||!output.value)return;
+    if(typeof context.setSinkId!=='function'){message('<strong>Output selection isn’t supported in this browser.</strong> Audio will use your system’s default speakers.');return;}
+    try{await context.setSinkId(output.value);message('<strong>Speaker changed.</strong> Audio is now routed to the selected output.');}
+    catch(e){message('<strong>Could not switch speaker.</strong> Check browser permissions and try again.',true);}
+  });
+  input.addEventListener('change',()=>{if(stream)message('<strong>Input changed.</strong> Stop and start the microphone to switch to the new input.');});
+  if(!window.isSecureContext)message('<strong>Secure connection required.</strong> Microphone access usually works only on HTTPS or localhost. Enable GitHub Pages to use this site securely.');
+  refreshDevices().catch(()=>{});
+})();
+</script>
+</body>
+</html>
